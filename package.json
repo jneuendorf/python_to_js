@@ -1,0 +1,23 @@
+{
+  "name": "python_to_js",
+  "version": "0.0.1",
+  "main": "src/js/index.js",
+  "author": "Jim Neuendorf <jim.neuendorf@gmx.de>",
+  "license": "MIT",
+  "keywords": [
+    "python",
+    "python3",
+    "babel",
+    "transpile",
+    "transpiler"
+  ],
+  "scripts": {
+      "test": "node src/js/index.js --pattern=**/test.py"
+  },
+  "dependencies": {
+    "babel-core": "^6.26.0",
+    "babel-generator": "^6.26.0",
+    "globby": "^8.0.1",
+    "yargs": "^12.0.2"
+  }
+}
