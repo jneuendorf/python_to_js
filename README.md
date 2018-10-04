@@ -11,6 +11,8 @@ The idea is to have frontend code that _looks_ like python.
 It does not mean that the entire standard library is also being implemented (like [brython](https://github.com/brython-dev/brython)) or that the resulting behavior is identical.
 
 For example, `dict()` or `{}` creates a JavaScript `Object` which behaves differently that `dict`.
+Another example is that `func.__name__` will be `undefined` whereas `func.name` won't.
+Those kinds of features may be implemented as runtime features in the future.
 
 
 ## Testing / Development

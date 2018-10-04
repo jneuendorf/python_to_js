@@ -7,14 +7,6 @@
 // f(1,b=2,c=(3,4,5),d='d')
 // # 1 2 () d 3 {'c': (3, 4, 5)}
 
-function __use_kwarg__(kwargs, prev_value, prop_name) {
-    let new_value = prev_value
-    if (kwargs.hasOwnProperty(prop_name)) {
-        new_value = kwargs[prop_name]
-        delete kwargs[prop_name]
-    }
-    return new_value
-}
 
 __def__(function f([a, b=1, ...c], {d, e=3, ...f}) {
     // try to take all args from kwargs (except c because rest => '*c'):
@@ -27,9 +19,16 @@ __def__(function f([a, b=1, ...c], {d, e=3, ...f}) {
     console.log(a,b,c,d,e,f)
 })
 // f([1,2,3,4,5], {d:'d'})
-__call__(f, [1,2,3,4,5], {d:'d'})
+// f.apply(undefined, [1,2,3,4,5], {d:'d'})
+f.__def__ ? f([1,2,3,4,5], {d:'d'}) : f(1,2,3,4,5)
+// __call__(f, [1,2,3,4,5], {d:'d'})
+
 // obj.f([1,2,3,4,5], {d:'d'})
-__call__(obj, 'f', [1,2,3,4,5], {d:'d'})
+// obj.f.apply(obj, [1,2,3,4,5], {d:'d'})
+(obj.prop.f.__def__ ? obj.prop.f([1,2,3,4,5], {d:'d'}) : obj.prop.f(1,2,3,4,5))
+// __call__(obj, 'f', [1,2,3,4,5], {d:'d'})
 
 
 // f([1], {b:2, c: [3,4,5], d:'d'})
+
+// (obj.prop.f.__def__ ? obj.prop.f(args, kwargs) : obj.prop.f(args_unpacked))

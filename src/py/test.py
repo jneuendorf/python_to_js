@@ -5,6 +5,8 @@
 
 # def func():
 #     print('')
+@dec1
+@dec2(1, w=2)
 def func(a, b=1, *c, d, e=3, **f):
     # print(a, b, c, d, e, f)
     pass

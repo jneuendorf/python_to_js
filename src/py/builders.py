@@ -1,3 +1,6 @@
+import type_checkers as check
+
+
 def identifier(name):
     return {
         'type': 'Identifier',
@@ -16,28 +19,92 @@ def string(value=''):
     }
 
 
-def assignment(left, right, parenthesized=True):
+def expression(expression):
     return {
         'type': 'ExpressionStatement',
-        'expression': {
-            'type': 'AssignmentExpression',
-            'operator': '=',
-            'left': left,
-            'right': right,
-            'extra': {
-                'parenthesized': parenthesized,
-                # 'parenStart': 0,
-            },
-        },
+        'expression': expression,
     }
 
 
-def call(callee, arguments=[]):
+def assignment(left, right, parenthesized=True):
+    return expression({
+        'type': 'AssignmentExpression',
+        'operator': '=',
+        'left': left,
+        'right': right,
+        'extra': {
+            'parenthesized': parenthesized,
+            # 'parenStart': 0,
+        },
+    })
+
+
+# Corresponds to the 'Attribute' ast class.
+def member_expression(object, property, computed=False):
     return {
+        'type': 'MemberExpression',
+        'object': object,
+        'property': property,
+        'computed': computed,
+    }
+
+
+def call_expression(callee, args=[], keywords=[], ensure_native_compatibility=True):
+    plain_args = [
+        (
+            {'type': 'SpreadElement', 'argument': arg}
+            if 'starred' in arg and arg['starred'] is True
+            else arg
+        )
+        for arg in args
+    ]
+    plain_call_expression = {
         'type': 'CallExpression',
         'callee': callee,
-        'arguments': arguments,
+        'arguments': plain_args,
     }
+
+    if not ensure_native_compatibility:
+        return plain_call_expression
+
+    # else: if callee has '__def__' prop
+    #       call like f(args, kwargs) otherwise like f(...args)
+    return expression({
+        'type': 'ConditionalExpression',
+        # TODO: Use constant from 'JsHelperNames'
+        'test': member_expression(
+            object=callee,
+            property=identifier('__def__')
+        ),
+        'consequent': {
+            'type': 'CallExpression',
+            'callee': callee,
+            'arguments': [
+                {
+                    'type': 'ArrayExpression',
+                    'elements': plain_args,
+                },
+                {
+                    'type': 'ObjectExpression',
+                    'properties': [
+                        (
+                            {'type': 'SpreadElement', 'argument': keyword['value']}
+                            if keyword['arg'] is None
+                            else object_property(
+                                key=keyword['arg'],
+                                value=keyword['value'],
+                            )
+                        )
+                        for keyword in keywords
+                    ],
+                }
+            ],
+        },
+        'alternate': plain_call_expression,
+        'extra': {
+            'parenthesized': True,
+        },
+    })
 
 
 def array_destructuring(props, rest=None, bare_pattern=False, destructured=None, declare=None):

@@ -17,9 +17,13 @@ export function __use_kwarg__(kwargs, prev_value, prop_name) {
 // Mark function as transpiled / not built-in.
 // NOTE: Does not work when funciton is decorated...
 export function __def__(func) {
-    func.apply = (ctx, args, kwargs) => {
-        return func.call(ctx, args, kwargs)
-    }
+    func.__def__ = true
+    // func.apply = (ctx, args, kwargs) => {
+    //     return func.call(ctx, args, kwargs)
+    // }
+    // TODO: Maybe for convenience do this (but maybe it is better to stick to
+    //       the JS environment and not provide pythonic features sometimes)
+    // func.__name__ = func.name
 }
 
 // Add 'const self = this' for methods in order not to modify arguments additionally.

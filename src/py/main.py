@@ -6,6 +6,7 @@ from pprint import pprint
 import sys
 
 import builders as build
+import type_checkers as check
 
 
 JsHelperNames = namedtuple('JsHelperNames', ' '.join([
@@ -87,39 +88,44 @@ def map_assign(babel_node, node):
 
 @consume('func', 'args', 'keywords')
 def map_call(babel_node, node):
-    print('>>>>>>>>')
-    pprint([keyword['arg'] for keyword in babel_node['keywords']])
-    return {
-        'type': 'CallExpression',
-        'callee': babel_node['func'],
-        'arguments': [
-            {
-                'type': 'ArrayExpression',
-                'elements': [
-                    (
-                        {'type': 'SpreadElement', 'argument': arg}
-                        if 'starred' in arg and arg['starred'] is True
-                        else arg
-                    )
-                    for arg in babel_node['args']
-                ],
-            },
-            {
-                'type': 'ObjectExpression',
-                'properties': [
-                    (
-                        {'type': 'SpreadElement', 'argument': keyword['value']}
-                        if keyword['arg'] is None
-                        else build.object_property(
-                            key=keyword['arg'],
-                            value=keyword['value'],
-                        )
-                    )
-                    for keyword in babel_node['keywords']
-                ],
-            },
-        ],
-    }
+    # print('>>>>>>>>')
+    # pprint([keyword['arg'] for keyword in babel_node['keywords']])
+    return build.call_expression(
+        callee=babel_node['func'],
+        args=babel_node['args'],
+        keywords=babel_node['keywords'],
+    )
+    # return {
+    #     'type': 'CallExpression',
+    #     'callee': babel_node['func'],
+    #     'arguments': [
+    #         {
+    #             'type': 'ArrayExpression',
+    #             'elements': [
+    #                 (
+    #                     {'type': 'SpreadElement', 'argument': arg}
+    #                     if 'starred' in arg and arg['starred'] is True
+    #                     else arg
+    #                 )
+    #                 for arg in babel_node['args']
+    #             ],
+    #         },
+    #         {
+    #             'type': 'ObjectExpression',
+    #             'properties': [
+    #                 (
+    #                     {'type': 'SpreadElement', 'argument': keyword['value']}
+    #                     if keyword['arg'] is None
+    #                     else build.object_property(
+    #                         key=keyword['arg'],
+    #                         value=keyword['value'],
+    #                     )
+    #                 )
+    #                 for keyword in babel_node['keywords']
+    #             ],
+    #         },
+    #     ],
+    # }
 
 
 @consume('id', 'ctx')
@@ -146,19 +152,24 @@ def map_function_def(babel_node, node):
         defaults = [NO_DEFAULT for i in range(0, diff)] + defaults
 
     # TODO: decorators
-    # decorator_list = babel_node['decorator_list']
+    decorator_list = babel_node['decorator_list']
+    print('>>')
+    pprint(decorator_list)
+    # if check.is_identifier(decorator)
+    # for decorator in decorator_list
     # print(list(enumerate(kwonlyargs)), kw_defaults)
     body = (
         [
             build.assignment(
                 left=arg,
-                right=build.call(
+                right=build.call_expression(
                     callee=build.identifier(JsHelperNames.CONSUME_KWARG_IF_POSSIBLE),
-                    arguments=[
+                    args=[
                         kwarg,
                         arg,
                         build.string(arg['name'])
-                    ]
+                    ],
+                    ensure_native_compatibility=False,
                 ),
             )
             for arg in args
@@ -166,9 +177,10 @@ def map_function_def(babel_node, node):
         ]
         + babel_node['body']
     )
+    func_name = build.identifier(node.name)
     res = {
         'type': 'FunctionDeclaration',
-        'id': build.identifier(node.name),
+        'id': func_name,
         'params': [
             build.array_destructuring(
                 props=[
@@ -201,7 +213,23 @@ def map_function_def(babel_node, node):
             'directives': [],
         },
     }
-    return res
+    # return res
+    return {
+        'type': 'VariableDeclaration',
+        'declarations': [
+            {
+                'type': 'VariableDeclarator',
+                'id': func_name,
+                'init': build.call_expression(
+                    # TODO: Use constant
+                    callee=build.identifier('__def__'),
+                    args=[res],
+                    ensure_native_compatibility=False,
+                ),
+            }
+        ],
+        'kind': 'var',
+    }
 
 
 def map_lambda(babel_node, node):
