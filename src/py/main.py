@@ -7,6 +7,7 @@ import sys
 
 import builders as build
 import type_checkers as check
+import utils
 
 
 JsHelperNames = namedtuple('JsHelperNames', ' '.join([
@@ -95,37 +96,6 @@ def map_call(babel_node, node):
         args=babel_node['args'],
         keywords=babel_node['keywords'],
     )
-    # return {
-    #     'type': 'CallExpression',
-    #     'callee': babel_node['func'],
-    #     'arguments': [
-    #         {
-    #             'type': 'ArrayExpression',
-    #             'elements': [
-    #                 (
-    #                     {'type': 'SpreadElement', 'argument': arg}
-    #                     if 'starred' in arg and arg['starred'] is True
-    #                     else arg
-    #                 )
-    #                 for arg in babel_node['args']
-    #             ],
-    #         },
-    #         {
-    #             'type': 'ObjectExpression',
-    #             'properties': [
-    #                 (
-    #                     {'type': 'SpreadElement', 'argument': keyword['value']}
-    #                     if keyword['arg'] is None
-    #                     else build.object_property(
-    #                         key=keyword['arg'],
-    #                         value=keyword['value'],
-    #                     )
-    #                 )
-    #                 for keyword in babel_node['keywords']
-    #             ],
-    #         },
-    #     ],
-    # }
 
 
 @consume('id', 'ctx')
@@ -151,13 +121,7 @@ def map_function_def(babel_node, node):
     if diff > 0:
         defaults = [NO_DEFAULT for i in range(0, diff)] + defaults
 
-    # TODO: decorators
-    decorator_list = babel_node['decorator_list']
-    print('>>')
-    pprint(decorator_list)
-    # if check.is_identifier(decorator)
-    # for decorator in decorator_list
-    # print(list(enumerate(kwonlyargs)), kw_defaults)
+    # Prepend custom JS code the function body (for creating the kwargs behavior).
     body = (
         [
             build.assignment(
@@ -179,7 +143,7 @@ def map_function_def(babel_node, node):
     )
     func_name = build.identifier(node.name)
     res = {
-        'type': 'FunctionDeclaration',
+        'type': 'FunctionExpression',
         'id': func_name,
         'params': [
             build.array_destructuring(
@@ -213,19 +177,42 @@ def map_function_def(babel_node, node):
             'directives': [],
         },
     }
-    # return res
+
+    function_definition = build.call_expression(
+        # TODO: Use constant
+        callee=build.identifier('__def__'),
+        args=[res],
+        ensure_native_compatibility=False,
+    )
+
+    # Create decorator calls
+    decorator_list = babel_node['decorator_list']
+    if decorator_list:
+        # decorators = [
+        #     utils.unwrap_ensured_native_compatibility_call(decorator)
+        #     for decorator in decorator_list
+        # ]
+        # print('=============================================')
+        # pprint(decorators)
+        print('=============================================')
+        for decorator in reversed(decorator_list):
+            dec = utils.unwrap_ensured_native_compatibility_call(decorator)
+            function_definition = build.call_expression(
+                # TODO: Use constant
+                callee=dec,
+                args=[function_definition],
+                ensure_native_compatibility=False,
+            )
+    pprint(function_definition)
+    print('=============================================')
+
     return {
         'type': 'VariableDeclaration',
         'declarations': [
             {
                 'type': 'VariableDeclarator',
                 'id': func_name,
-                'init': build.call_expression(
-                    # TODO: Use constant
-                    callee=build.identifier('__def__'),
-                    args=[res],
-                    ensure_native_compatibility=False,
-                ),
+                'init': function_definition,
             }
         ],
         'kind': 'var',
