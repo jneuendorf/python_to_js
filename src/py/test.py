@@ -26,7 +26,9 @@
 
 
 class B(A):
-    pass
+    a = 2
+    # def method(self, a):
+    #     print(a)
 
-class C(D, E):
-    pass
+# class C(D, E):
+#     pass

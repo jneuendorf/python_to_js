@@ -24,8 +24,8 @@ def consume(*props):
     The mapping consumes props from an AST node especially when renaming
     props.'''
     def decorator(map_node):
-        def wrapper(babel_node, node):
-            result = map_node(babel_node, node)
+        def wrapper(babel_node, node, parents):
+            result = map_node(babel_node, node, parents)
             for prop in props:
                 if prop in babel_node:
                     del babel_node[prop]
@@ -40,7 +40,7 @@ def consume(*props):
 # MAPPERS
 
 @consume('body')
-def map_module(babel_node, node):
+def map_module(babel_node, node, parents):
     body = babel_node['body']
     docstring = ast.get_docstring(node, clean=True)
     if docstring:
@@ -66,7 +66,7 @@ def map_module(babel_node, node):
 
 
 @consume('targets', 'value')
-def map_assign(babel_node, node):
+def map_assign(babel_node, node, parents):
     targets = babel_node['targets']
     value = babel_node['value']
 
@@ -78,17 +78,55 @@ def map_assign(babel_node, node):
             raise ValueError('list unpacking is not yet supported')
         else:
             return {
-                'type': 'AssignmentExpression',
-                'operator': '=',
-                'left': target,
-                'right': value,
+                'type': 'VariableDeclaration',
+                'declarations': [
+                    {
+                        'type': 'VariableDeclarator',
+                        'id': target,
+                        'init': value,
+                    }
+                ],
+                'kind': 'var',
+            }
+            # return {
+            #     'type': 'AssignmentExpression',
+            #     'operator': '=',
+            #     'left': target,
+            #     'right': value,
+            # }
+    else:
+        raise ValueError('assigning to multiple variables is not yet supported')
+
+
+@consume('targets', 'value')
+def map_assign_to_class_prop(babel_node, node, parents):
+    targets = babel_node['targets']
+    value = babel_node['value']
+
+    if len(targets) == 1:
+        target = targets[0]
+        if isinstance(target, ast.Tuple):
+            raise ValueError('tuple unpacking is not yet supported')
+        elif isinstance(target, ast.List):
+            raise ValueError('list unpacking is not yet supported')
+        else:
+            return {
+                'type': 'ClassProperty',
+                # TODO: How to detect this?
+                'static': False,
+                'computed': False,
+                # TODO: ?
+                # 'varianace': None,
+                'key': target,
+                'value': value,
             }
     else:
         raise ValueError('assigning to multiple variables is not yet supported')
 
 
+
 @consume('func', 'args', 'keywords')
-def map_call(babel_node, node):
+def map_call(babel_node, node, parents):
     # print('>>>>>>>>')
     # pprint([keyword['arg'] for keyword in babel_node['keywords']])
     return build.call_expression(
@@ -99,7 +137,7 @@ def map_call(babel_node, node):
 
 
 @consume('id', 'ctx')
-def map_name(babel_node, node):
+def map_name(babel_node, node, parents):
     # id = node.id
     # one of ast.Load, ast.Store, ast.Delete
     # ctx = node.ctx
@@ -107,7 +145,7 @@ def map_name(babel_node, node):
 
 
 @consume('args', 'body', 'decorator_list', 'returns')
-def map_function_def(babel_node, node):
+def map_function_def(babel_node, node, parents):
     arguments = babel_node['args']
     args = arguments.get('args', [])
     defaults = arguments.get('defaults', [])
@@ -201,14 +239,14 @@ def map_function_def(babel_node, node):
     }
 
 
-def map_lambda(babel_node, node):
+def map_lambda(babel_node, node, parents):
     babel_node = dict(babel_node)
     babel_node['body'] = [babel_node['body']]
     return map_function_def(babel_node, node)
 
 
 @consume('bases', 'keywords', 'body', 'decorator_list', 'returns')
-def map_class_def(babel_node, node):
+def map_class_def(babel_node, node, parents):
     class_name = build.identifier(node.name)
     bases = babel_node['bases']
 
@@ -225,13 +263,18 @@ def map_class_def(babel_node, node):
                 ensure_native_compatibility=False,
             )
 
+    body = babel_node['body']
+
+    # Change functions to methods and variable declarations to class properties
+    # that were created by the recursion already.
+
     class_expression = {
         'type': 'ClassExpression',
         'id': class_name,
         'superClass': super_class,
         'body': {
             'type': 'ClassBody',
-            'body': babel_node['body'],
+            'body': body,
         },
     }
 
@@ -262,56 +305,61 @@ def map_class_def(babel_node, node):
 ###############################################################################
 mapping = {
     'Module': map_module,
-    'Expr': lambda babel_node, node: {
+    'Expr': lambda babel_node, node, parents: {
         'type': 'ExpressionStatement',
         'expression': babel_node['value'],
     },
-    'Pass': lambda babel_node, node: {
+    'Pass': lambda babel_node, node, parents: {
         'type': 'EmptyStatement',
     },
-    'Assign': map_assign,
+    # 'Assign': map_assign,
+    'Assign': lambda babel_node, node, parents: (
+        map_assign_to_class_prop(babel_node, node, parents)
+        if parents and isinstance(parents[0], ast.ClassDef)
+        else map_assign(babel_node, node, parents)
+    ),
     'Call': map_call,
     'Name': map_name,
-    'Num': lambda babel_node, node: {
+    'Num': lambda babel_node, node, parents: {
         'type': 'NumericLiteral',
         'value': node.n,
     },
-    'Str': lambda babel_node, node: {
+    'Str': lambda babel_node, node, parents: {
         'type': 'StringLiteral',
         'value': node.s,
     },
-    'Store': lambda babel_node, node: {},
+    'Store': lambda babel_node, node, parents: {},
 
     'ClassDef': map_class_def,
 
     'FunctionDef': map_function_def,
     'Lambda': map_lambda,
-    'arguments': lambda babel_node, node: babel_node,
-    'arg': lambda babel_node, node: build.identifier(node.arg),
-    'Starred': lambda babel_node, node: {
+    'arguments': lambda babel_node, node, parents: babel_node,
+    'arg': lambda babel_node, node, parents: build.identifier(node.arg),
+    'Starred': lambda babel_node, node, parents: {
         **babel_node['value'],
         'starred': True,
     },
-    'keyword': lambda babel_node, node: {
+    'keyword': lambda babel_node, node, parents: {
         'arg': None if node.arg is None else build.identifier(node.arg),
         'value': babel_node['value'],
     },
 }
 
 
-def complete_babel_node(incomplete_babel_node_with_children, node):
+def complete_babel_node(incomplete_babel_node_with_children, node, parents):
     if node.__class__.__name__ in mapping:
         print('yes', node.__class__.__name__)
         # print(incomplete_babel_node_with_children)
         map_node = mapping[node.__class__.__name__]
-        completion = map_node(incomplete_babel_node_with_children, node)
+        completion = map_node(incomplete_babel_node_with_children, node, parents)
         incomplete_babel_node_with_children.update(completion)
         pprint(incomplete_babel_node_with_children)
     else:
         print('oops', node.__class__.__name__)
 
 
-def create_babel_node(node):
+def create_babel_node(node, parents=tuple()):
     if node is None:
         return None
 
@@ -330,16 +378,18 @@ def create_babel_node(node):
         #     },
         # },
     }
+    # The root node is last.
+    parents_with_current = (node,) + parents
     for field, value in ast.iter_fields(node):
         if isinstance(value, list):
             babel_node[field] = [
-                create_babel_node(item)
+                create_babel_node(item, parents_with_current)
                 for item in value
                 # if isinstance(item, ast.AST)
             ]
         elif isinstance(value, ast.AST):
-            babel_node[field] = create_babel_node(value)
-    complete_babel_node(babel_node, node)
+            babel_node[field] = create_babel_node(value, parents_with_current)
+    complete_babel_node(babel_node, node, parents)
     return babel_node
 
 
