@@ -5,29 +5,28 @@
 
 # def func():
 #     print('')
-@dec1
-@dec2(1, w=2)
-def func():
-    pass
-
-# func = dec1(dec2(1, w=2)(func))
+# @dec1
+# @dec2(1, w=2)
+# def func():
+#     pass
 
 
 
 # def func(a, b=1, *c, d, e=3, **f):
-#     # print(a, b, c, d, e, f)
-#     pass
+#     print(a, b, c, d, e, f)
 
 # func(a, b=c, *d, **e)
 
 # def func(a, b=1, *c):
-#     # print(a, b, c)
-#     pass
+#     print(a, b, c)
 
 
 # class A():
 #     pass
 
 
-# class B(A):
-#     pass
+class B(A):
+    pass
+
+class C(D, E):
+    pass

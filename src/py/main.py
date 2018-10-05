@@ -185,34 +185,16 @@ def map_function_def(babel_node, node):
         ensure_native_compatibility=False,
     )
 
-    # Create decorator calls
-    decorator_list = babel_node['decorator_list']
-    if decorator_list:
-        # decorators = [
-        #     utils.unwrap_ensured_native_compatibility_call(decorator)
-        #     for decorator in decorator_list
-        # ]
-        # print('=============================================')
-        # pprint(decorators)
-        print('=============================================')
-        for decorator in reversed(decorator_list):
-            dec = utils.unwrap_ensured_native_compatibility_call(decorator)
-            function_definition = build.call_expression(
-                # TODO: Use constant
-                callee=dec,
-                args=[function_definition],
-                ensure_native_compatibility=False,
-            )
-    pprint(function_definition)
-    print('=============================================')
-
     return {
         'type': 'VariableDeclaration',
         'declarations': [
             {
                 'type': 'VariableDeclarator',
                 'id': func_name,
-                'init': function_definition,
+                'init': utils.apply_decorators(
+                    babel_node['decorator_list'],
+                    function_definition
+                ),
             }
         ],
         'kind': 'var',
@@ -223,6 +205,58 @@ def map_lambda(babel_node, node):
     babel_node = dict(babel_node)
     babel_node['body'] = [babel_node['body']]
     return map_function_def(babel_node, node)
+
+
+@consume('bases', 'keywords', 'body', 'decorator_list', 'returns')
+def map_class_def(babel_node, node):
+    class_name = build.identifier(node.name)
+    bases = babel_node['bases']
+
+    if not bases:
+        super_class = None
+    else:
+        if len(bases) == 1:
+            super_class = bases[0]
+        else:
+            super_class = build.call_expression(
+                # TODO: Use constant
+                callee=build.identifier('__multi__'),
+                args=bases,
+                ensure_native_compatibility=False,
+            )
+
+    class_expression = {
+        'type': 'ClassExpression',
+        'id': class_name,
+        'superClass': super_class,
+        'body': {
+            'type': 'ClassBody',
+            'body': babel_node['body'],
+        },
+    }
+
+    if babel_node['keywords']:
+        print('keywords was provided for class definition. ignored...')
+
+    return {
+        'type': 'VariableDeclaration',
+        'declarations': [
+            {
+                'type': 'VariableDeclarator',
+                'id': class_name,
+                'init': utils.apply_decorators(
+                    babel_node['decorator_list'],
+                    build.call_expression(
+                        # TODO: Use constant
+                        callee=build.identifier('__def__'),
+                        args=[class_expression],
+                        ensure_native_compatibility=False,
+                    )
+                ),
+            }
+        ],
+        'kind': 'var',
+    }
 
 
 ###############################################################################
@@ -247,6 +281,8 @@ mapping = {
         'value': node.s,
     },
     'Store': lambda babel_node, node: {},
+
+    'ClassDef': map_class_def,
 
     'FunctionDef': map_function_def,
     'Lambda': map_lambda,

@@ -2,6 +2,10 @@ export function print(args, kwargs) {
     console.log(...args)
 }
 
+export function type() {
+    // TODO
+}
+
 // Preferring 'in' keyword.
 // export const __has__ = (obj, prop) => obj.hasOwnProperty(prop)
 
