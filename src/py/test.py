@@ -33,5 +33,8 @@ class B(A):
     def method(self):
         pass
 
+    def method2(self, a, b=1, *c, d, e=3, **f):
+        print(a, b, c, d, e, f)
+
 # class C(D, E):
 #     pass

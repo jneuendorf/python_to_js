@@ -1,5 +1,4 @@
 import ast
-from collections import namedtuple
 import json
 import os
 from pprint import pprint
@@ -8,15 +7,6 @@ import sys
 import builders as build
 import type_checkers as check
 import utils
-
-
-JsHelperNames = namedtuple('JsHelperNames', ' '.join([
-    # keys
-    'CONSUME_KWARG_IF_POSSIBLE',
-]))(
-    # values
-    '__use_kwarg__',
-)
 
 
 def consume(*props):
@@ -88,12 +78,6 @@ def map_assign(babel_node, node, parents):
                 ],
                 'kind': 'var',
             }
-            # return {
-            #     'type': 'AssignmentExpression',
-            #     'operator': '=',
-            #     'left': target,
-            #     'right': value,
-            # }
     else:
         raise ValueError('assigning to multiple variables is not yet supported')
 
@@ -123,7 +107,6 @@ def map_assign_to_class_prop(babel_node, node, parents):
             }
     else:
         raise ValueError('assigning to multiple variables is not yet supported')
-
 
 
 @consume('func', 'args', 'keywords')
@@ -197,20 +180,25 @@ def map_function_def_to_class_method(babel_node, node, parents):
 
     is_classmethod = False
     for decorator in babel_node['decorator_list']:
-        is_classmethod_decorator = is_classmethod or (
-            (
-                check.is_identifier(decorator)
-                and decorator['name'] == 'classmethod'
-            )
-            or (
-                check.is_call_expression(decorator)
-                and utils.get_callee_name(decorator, raw=True) == 'classmethod'
-            )
-        )
-        if is_classmethod_decorator:
+        # '@classmethod' does not take any arguments
+        # => it must be an identifier.
+        decorator_is_identifier = check.is_identifier(decorator)
+        if decorator_is_identifier and decorator['name'] == 'classmethod':
             is_classmethod = True
         else:
-            decorators.append({'type': 'Decorator', 'expression': decorator})
+            if decorator_is_identifier:
+                expression = decorator
+            else:
+                # Use the kwargs supporting way to call the function to avoid
+                # actual expression as decorator which is technically possible.
+                # NOTE: This corresponds to
+                # 'build.call_expression(ensure_native_compatibility=False)'
+                # in 'utils.apply_decorators'.
+                expression = utils.unpack_value(
+                    decorator,
+                    'expression_statement.conditional_expression__consequent'
+                )
+            decorators.append({'type': 'Decorator', 'expression': expression})
 
     # Remove 'self' as 1st positional argument and instead inject
     # 'var self = this' into the method body.

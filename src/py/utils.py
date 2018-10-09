@@ -1,7 +1,17 @@
+from collections import namedtuple
 import itertools
 
 # import type_checkers as check
 import builders as build
+
+
+JsHelperNames = namedtuple('JsHelperNames', ' '.join([
+    # keys
+    'CONSUME_KWARG_IF_POSSIBLE',
+]))(
+    # values
+    '__use_kwarg__',
+)
 
 
 def groupby(iterable, key=lambda x: x):

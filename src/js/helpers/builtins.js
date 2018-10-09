@@ -1,6 +1,7 @@
-export function print(args, kwargs) {
+const print = __def__(function print(args, kwargs) {
     console.log(...args)
-}
+})
+export {print}
 
 export function type() {
     // TODO
@@ -28,22 +29,23 @@ export function __def__(func) {
     // TODO: Maybe for convenience do this (but maybe it is better to stick to
     //       the JS environment and not provide pythonic features sometimes)
     // func.__name__ = func.name
+    return func
 }
 
-// Add 'const self = this' for methods in order not to modify arguments additionally.
-export function __call__(..._args) {
-    let ctx, func, args, kwargs
-    if (args.length === 4) {
-        [ctx, func, args, kwargs] = _args
-    }
-    else {
-        ctx = undefined
-        [func, args, kwargs] = _args
-    }
-    // if (func.__def__) {
-    //     return func.call(ctx, args, kwargs)
-    // }
-    // Native functions (their apply is also native) are called the normal way because
-    // 'kwargs' is ignored
-    return func.apply(ctx, args, kwargs)
-}
+// // Add 'const self = this' for methods in order not to modify arguments additionally.
+// export function __call__(..._args) {
+//     let ctx, func, args, kwargs
+//     if (args.length === 4) {
+//         [ctx, func, args, kwargs] = _args
+//     }
+//     else {
+//         ctx = undefined
+//         [func, args, kwargs] = _args
+//     }
+//     // if (func.__def__) {
+//     //     return func.call(ctx, args, kwargs)
+//     // }
+//     // Native functions (their apply is also native) are called the normal way because
+//     // 'kwargs' is ignored
+//     return func.apply(ctx, args, kwargs)
+// }

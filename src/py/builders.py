@@ -1,3 +1,5 @@
+# MUST NOT IMPORT OTHER FILES OF THIS MODULE!
+
 def identifier(name):
     return {
         'type': 'Identifier',
