@@ -105,6 +105,7 @@ def map_assign_to_class_prop(babel_node, node, parents):
 
     if len(targets) == 1:
         target = targets[0]
+        # Unpacking is not supported by ES6 => custom implementation
         if isinstance(target, ast.Tuple):
             raise ValueError('tuple unpacking is not yet supported')
         elif isinstance(target, ast.List):
@@ -146,83 +147,22 @@ def map_name(babel_node, node, parents):
 
 @consume('args', 'body', 'decorator_list', 'returns')
 def map_function_def(babel_node, node, parents):
-    arguments = babel_node['args']
-    args = arguments.get('args', [])
-    defaults = arguments.get('defaults', [])
-    vararg = arguments.get('vararg', None)
-    kwonlyargs = arguments.get('kwonlyargs', [])
-    kw_defaults = arguments.get('kw_defaults', [])
-    kwarg = arguments.get('kwarg', None)
-
-    NO_DEFAULT = []
-    diff = len(args) - len(defaults)
-    if diff > 0:
-        defaults = [NO_DEFAULT for i in range(0, diff)] + defaults
-
-    # Prepend custom JS code the function body (for creating the kwargs behavior).
-    body = (
-        [
-            build.assignment(
-                left=arg,
-                right=build.call_expression(
-                    callee=build.identifier(JsHelperNames.CONSUME_KWARG_IF_POSSIBLE),
-                    args=[
-                        kwarg,
-                        arg,
-                        build.string(arg['name'])
-                    ],
-                    ensure_native_compatibility=False,
-                ),
-            )
-            for arg in args
-            if kwarg is not None
-        ]
-        + babel_node['body']
-    )
-    func_name = build.identifier(node.name)
-    res = {
-        'type': 'FunctionExpression',
-        'id': func_name,
-        'params': [
-            build.array_destructuring(
-                props=[
-                    (
-                        arg
-                        if defaults[i] is NO_DEFAULT
-                        else (arg, defaults[i])
-                    )
-                    for i, arg in enumerate(args)
-                ],
-                rest=vararg,
-                bare_pattern=True,
-            ),
-            build.object_destructuring(
-                props=[
-                    (
-                        kwonlyarg
-                        if kw_defaults[i] is None
-                        else (kwonlyarg, kw_defaults[i])
-                    )
-                    for i, kwonlyarg in enumerate(kwonlyargs)
-                ],
-                rest=kwarg,
-                bare_pattern=True,
-            ),
-        ],
-        'body': {
-            'type': 'BlockStatement',
-            'body': body,
-            'directives': [],
-        },
-    }
+    common_parts = utils.function_definition_parts(babel_node, node)
+    func_name = common_parts['__name__']
+    params = common_parts['params']
+    body = common_parts['body']
 
     function_definition = build.call_expression(
         # TODO: Use constant
         callee=build.identifier('__def__'),
-        args=[res],
+        args=[{
+            'type': 'FunctionExpression',
+            'id': func_name,
+            'params': params,
+            'body': body,
+        }],
         ensure_native_compatibility=False,
     )
-
     return {
         'type': 'VariableDeclaration',
         'declarations': [
@@ -243,6 +183,60 @@ def map_lambda(babel_node, node, parents):
     babel_node = dict(babel_node)
     babel_node['body'] = [babel_node['body']]
     return map_function_def(babel_node, node)
+
+
+@consume('args', 'body', 'decorator_list', 'returns')
+def map_function_def_to_class_method(babel_node, node, parents):
+    common_parts = utils.function_definition_parts(babel_node, node)
+    method_name = common_parts['__name__']
+    raw_method_name = method_name['name']
+    params = common_parts['params']
+    body = common_parts['body']
+
+    decorators = []
+
+    is_classmethod = False
+    for decorator in babel_node['decorator_list']:
+        is_classmethod_decorator = is_classmethod or (
+            (
+                check.is_identifier(decorator)
+                and decorator['name'] == 'classmethod'
+            )
+            or (
+                check.is_call_expression(decorator)
+                and utils.get_callee_name(decorator, raw=True) == 'classmethod'
+            )
+        )
+        if is_classmethod_decorator:
+            is_classmethod = True
+        else:
+            decorators.append({'type': 'Decorator', 'expression': decorator})
+
+    # Remove 'self' as 1st positional argument and instead inject
+    # 'var self = this' into the method body.
+    del params[0]['elements'][0]
+    body['body'].insert(0, build.variable_declaration(
+        left=build.identifier('self'),
+        right=build.this(),
+    ))
+
+    return {
+        'type': 'ClassMethod',
+        'kind': (
+            'constructor'
+            if raw_method_name == 'constructor'
+            else 'method'
+        ),
+        'decorators': decorators,
+        'static': is_classmethod,
+        'key': method_name,
+        'params': params,
+        'body': body,
+        'id': None,
+        'generator': False,
+        'expression': False,
+        'async': False,
+    }
 
 
 @consume('bases', 'keywords', 'body', 'decorator_list', 'returns')
@@ -332,7 +326,11 @@ mapping = {
 
     'ClassDef': map_class_def,
 
-    'FunctionDef': map_function_def,
+    'FunctionDef': lambda babel_node, node, parents: (
+        map_function_def_to_class_method(babel_node, node, parents)
+        if parents and isinstance(parents[0], ast.ClassDef)
+        else map_function_def(babel_node, node, parents)
+    ),
     'Lambda': map_lambda,
     'arguments': lambda babel_node, node, parents: babel_node,
     'arg': lambda babel_node, node, parents: build.identifier(node.arg),

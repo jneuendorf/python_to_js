@@ -11,7 +11,6 @@
 #     pass
 
 
-
 # def func(a, b=1, *c, d, e=3, **f):
 #     print(a, b, c, d, e, f)
 
@@ -27,8 +26,12 @@
 
 class B(A):
     a = 2
-    # def method(self, a):
-    #     print(a)
+
+    @dec1
+    @dec2()
+    @classmethod
+    def method(self):
+        pass
 
 # class C(D, E):
 #     pass

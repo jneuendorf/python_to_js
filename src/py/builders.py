@@ -1,6 +1,3 @@
-import type_checkers as check
-
-
 def identifier(name):
     return {
         'type': 'Identifier',
@@ -19,12 +16,31 @@ def string(value=''):
     }
 
 
+def this():
+    return {
+        'type': 'ThisExpression',
+    }
+
+
 def expression(expression):
     return {
         'type': 'ExpressionStatement',
         'expression': expression,
     }
 
+
+def variable_declaration(left, right, kind='var'):
+    return {
+        'type': 'VariableDeclaration',
+        'kind': kind,
+        'declarations': [
+            {
+                'type': 'VariableDeclarator',
+                'id': left,
+                'init': right,
+            }
+        ],
+    }
 
 def assignment(left, right, parenthesized=True):
     return expression({
@@ -138,16 +154,7 @@ def array_destructuring(props, rest=None, bare_pattern=False, destructured=None,
     if declare is None:
         return assignment(left=array_pattern, right=destructured)
     else:
-        return {
-            'type': 'VariableDeclaration',
-            'declarations': [
-                {
-                    'type': 'VariableDeclarator',
-                    'id': array_pattern,
-                    'init': destructured,
-                },
-            ],
-        }
+        return variable_declaration(left=array_pattern, right=destructured)
 
 
 UNDEFINED = tuple
@@ -245,16 +252,7 @@ def object_destructuring(props, rest=None, bare_pattern=False,
     if declare is None:
         return destructured(left=object_pattern, right=destructured)
     else:
-        return {
-            'type': 'VariableDeclaration',
-            'declarations': [
-                {
-                    'type': 'VariableDeclarator',
-                    'id': object_pattern,
-                    'init': destructured,
-                },
-            ],
-        }
+        return variable_declaration(left=object_pattern, right=destructured)
 
 
 def object_expression(props, rest=None):
