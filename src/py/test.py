@@ -33,6 +33,7 @@ class B(A):
     def method(self):
         pass
 
+    @staticmethod
     def method2(self, a, b=1, *c, d, e=3, **f):
         print(a, b, c, d, e, f)
 

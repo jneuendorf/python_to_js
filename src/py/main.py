@@ -178,13 +178,20 @@ def map_function_def_to_class_method(babel_node, node, parents):
 
     decorators = []
 
-    is_classmethod = False
+    use_static_keyword = False
+    inject_self = True
     for decorator in babel_node['decorator_list']:
         # '@classmethod' does not take any arguments
         # => it must be an identifier.
         decorator_is_identifier = check.is_identifier(decorator)
-        if decorator_is_identifier and decorator['name'] == 'classmethod':
-            is_classmethod = True
+        decorator_requires_static_keyword = (
+            decorator_is_identifier
+            and decorator['name'] in ['classmethod', 'staticmethod']
+        )
+        if decorator_requires_static_keyword:
+            use_static_keyword = True
+            if decorator['name'] == 'staticmethod':
+                inject_self = False
         else:
             if decorator_is_identifier:
                 expression = decorator
@@ -200,13 +207,18 @@ def map_function_def_to_class_method(babel_node, node, parents):
                 )
             decorators.append({'type': 'Decorator', 'expression': expression})
 
-    # Remove 'self' as 1st positional argument and instead inject
-    # 'var self = this' into the method body.
+    # Remove 'self' as 1st positional argument
+    # and remove 'self = __use_kwarg__(_, self, "self");'
+    # and instead inject 'var self = this' into the method body.
     del params[0]['elements'][0]
-    body['body'].insert(0, build.variable_declaration(
-        left=build.identifier('self'),
-        right=build.this(),
-    ))
+    inner_body = body['body']
+    if inner_body:
+        del inner_body[0]
+    if inject_self:
+        inner_body.insert(0, build.variable_declaration(
+            left=build.identifier('self'),
+            right=build.this(),
+        ))
 
     return {
         'type': 'ClassMethod',
@@ -216,7 +228,7 @@ def map_function_def_to_class_method(babel_node, node, parents):
             else 'method'
         ),
         'decorators': decorators,
-        'static': is_classmethod,
+        'static': use_static_keyword,
         'key': method_name,
         'params': params,
         'body': body,
