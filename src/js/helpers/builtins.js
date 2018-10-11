@@ -1,11 +1,45 @@
-const print = __def__(function print(args, kwargs) {
+export const print = __def__(function print(args, kwargs) {
     console.log(...args)
 })
-export {print}
 
 export function type() {
     // TODO
 }
+
+export const tuple = __def__(function tuple([iterable=[]], kwargs) {
+    return Object.freeze([...iterable])
+})
+
+export const dict = __def__(function dict([iterable], kwargs) {
+    // iterable = __use_kwarg__(kwargs, iterable, 'iterable')
+    const map = new Map(iterable)
+    for (const [key, value] of Object.entries(kwargs)) {
+        map.set(key, value)
+    }
+    return new Proxy(map, {
+        has(target, prop) {
+            return target.has(prop)
+        },
+        get(target, prop) {
+            if (['keys', 'values', 'entries', 'clear'].includes(prop)) {
+                return target[prop].bind(target)
+            }
+            if (prop === 'items') {
+                return target.entries.bind(target)
+            }
+            return target.get(prop)
+        },
+        set(target, prop, value) {
+            return target.set(prop, value)
+        },
+        deleteProperty(target, prop) {
+            return target.delete(prop)
+        },
+        ownKeys(target) {
+            return [...target.keys()]
+        }
+    })
+})
 
 // Preferring 'in' keyword.
 // export const __has__ = (obj, prop) => obj.hasOwnProperty(prop)
