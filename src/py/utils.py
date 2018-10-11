@@ -8,10 +8,31 @@ import builders as build
 JsHelperNames = namedtuple('JsHelperNames', ' '.join([
     # keys
     'CONSUME_KWARG_IF_POSSIBLE',
+    'TUPLE_CONSTRUCTOR',
+    'DICT_CONSTRUCTOR',
 ]))(
     # values
     '__use_kwarg__',
+    'tuple',
+    'dict',
 )
+
+
+def consume(*props):
+    '''Decorator for removing auto-copied props from the babel nodes:
+    The mapping consumes props from an AST node especially when renaming
+    props.'''
+    def decorator(map_node):
+        def wrapper(babel_node, node, parents):
+            result = map_node(babel_node, node, parents)
+            for prop in props:
+                if prop in babel_node:
+                    del babel_node[prop]
+                # else:
+                #     print('INFO: consuming not existing prop', prop)
+            return result
+        return wrapper
+    return decorator
 
 
 def groupby(iterable, key=lambda x: x):

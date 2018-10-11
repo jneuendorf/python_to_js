@@ -7,23 +7,10 @@ import sys
 import builders as build
 import type_checkers as check
 import utils
+from utils import consume
 
-
-def consume(*props):
-    '''Decorator for removing auto-copied props from the babel nodes:
-    The mapping consumes props from an AST node especially when renaming
-    props.'''
-    def decorator(map_node):
-        def wrapper(babel_node, node, parents):
-            result = map_node(babel_node, node, parents)
-            for prop in props:
-                if prop in babel_node:
-                    del babel_node[prop]
-                # else:
-                #     print('INFO: consuming not existing prop', prop)
-            return result
-        return wrapper
-    return decorator
+import control_flow
+import literals
 
 
 ###############################################################################
@@ -111,8 +98,6 @@ def map_assign_to_class_prop(babel_node, node, parents):
 
 @consume('func', 'args', 'keywords')
 def map_call(babel_node, node, parents):
-    # print('>>>>>>>>')
-    # pprint([keyword['arg'] for keyword in babel_node['keywords']])
     return build.call_expression(
         callee=babel_node['func'],
         args=babel_node['args'],
@@ -297,7 +282,27 @@ def map_class_def(babel_node, node, parents):
 
 
 ###############################################################################
+def func_name_to_node_name(func_name):
+    snake_node_name = func_name.replace('map_', '', 1)
+    return ''.join(
+        word.capitalize()
+        for word in snake_node_name.split('_')
+    )
+
+
+def get_mappers(module):
+    module_dict = module.__dict__
+    return {
+        func_name_to_node_name(name): module_dict[name]
+        for name in module_dict
+        if name.startswith('map_')
+    }
+
+
 mapping = {
+    **get_mappers(literals),
+    **get_mappers(control_flow),
+
     'Module': map_module,
     'Expr': lambda babel_node, node, parents: {
         'type': 'ExpressionStatement',
@@ -306,7 +311,6 @@ mapping = {
     'Pass': lambda babel_node, node, parents: {
         'type': 'EmptyStatement',
     },
-    # 'Assign': map_assign,
     'Assign': lambda babel_node, node, parents: (
         map_assign_to_class_prop(babel_node, node, parents)
         if parents and isinstance(parents[0], ast.ClassDef)
@@ -314,14 +318,6 @@ mapping = {
     ),
     'Call': map_call,
     'Name': map_name,
-    'Num': lambda babel_node, node, parents: {
-        'type': 'NumericLiteral',
-        'value': node.n,
-    },
-    'Str': lambda babel_node, node, parents: {
-        'type': 'StringLiteral',
-        'value': node.s,
-    },
     'Store': lambda babel_node, node, parents: {},
 
     'ClassDef': map_class_def,
@@ -332,13 +328,13 @@ mapping = {
         else map_function_def(babel_node, node, parents)
     ),
     'Lambda': map_lambda,
-    'arguments': lambda babel_node, node, parents: babel_node,
-    'arg': lambda babel_node, node, parents: build.identifier(node.arg),
+    'Arguments': lambda babel_node, node, parents: babel_node,
+    'Arg': lambda babel_node, node, parents: build.identifier(node.arg),
     'Starred': lambda babel_node, node, parents: {
         **babel_node['value'],
         'starred': True,
     },
-    'keyword': lambda babel_node, node, parents: {
+    'Keyword': lambda babel_node, node, parents: {
         'arg': None if node.arg is None else build.identifier(node.arg),
         'value': babel_node['value'],
     },
@@ -349,7 +345,9 @@ def complete_babel_node(incomplete_babel_node_with_children, node, parents):
     if node.__class__.__name__ in mapping:
         print('yes', node.__class__.__name__)
         # print(incomplete_babel_node_with_children)
-        map_node = mapping[node.__class__.__name__]
+        node_name = node.__class__.__name__
+        key = node_name[0].upper() + node_name[1:]
+        map_node = mapping[key]
         completion = map_node(incomplete_babel_node_with_children, node, parents)
         incomplete_babel_node_with_children.update(completion)
         pprint(incomplete_babel_node_with_children)

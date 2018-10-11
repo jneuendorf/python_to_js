@@ -1,5 +1,6 @@
 # MUST NOT IMPORT OTHER FILES OF THIS MODULE!
 
+
 def identifier(name):
     return {
         'type': 'Identifier',
@@ -24,7 +25,7 @@ def this():
     }
 
 
-def expression(expression):
+def expression_statement(expression):
     return {
         'type': 'ExpressionStatement',
         'expression': expression,
@@ -44,8 +45,9 @@ def variable_declaration(left, right, kind='var'):
         ],
     }
 
+
 def assignment(left, right, parenthesized=True):
-    return expression({
+    return expression_statement({
         'type': 'AssignmentExpression',
         'operator': '=',
         'left': left,
@@ -67,10 +69,21 @@ def member_expression(object, property, computed=False):
     }
 
 
+def spread(argument):
+    return {'type': 'SpreadElement', 'argument': argument}
+
+
+def array_expression(elements=[]):
+    return {
+        'type': 'ArrayExpression',
+        'elements': elements,
+    }
+
+
 def call_expression(callee, args=[], keywords=[], ensure_native_compatibility=True):
     plain_args = [
         (
-            {'type': 'SpreadElement', 'argument': arg}
+            spread(arg)
             if 'starred' in arg and arg['starred'] is True
             else arg
         )
@@ -87,7 +100,7 @@ def call_expression(callee, args=[], keywords=[], ensure_native_compatibility=Tr
 
     # else: if callee has '__def__' prop
     #       call like f(args, kwargs) otherwise like f(...args)
-    return expression({
+    return {
         'type': 'ConditionalExpression',
         # TODO: Use constant from 'JsHelperNames'
         'test': member_expression(
@@ -98,15 +111,12 @@ def call_expression(callee, args=[], keywords=[], ensure_native_compatibility=Tr
             'type': 'CallExpression',
             'callee': callee,
             'arguments': [
-                {
-                    'type': 'ArrayExpression',
-                    'elements': plain_args,
-                },
+                array_expression(plain_args),
                 {
                     'type': 'ObjectExpression',
                     'properties': [
                         (
-                            {'type': 'SpreadElement', 'argument': keyword['value']}
+                            spread(keyword['value'])
                             if keyword['arg'] is None
                             else object_property(
                                 key=keyword['arg'],
@@ -122,10 +132,11 @@ def call_expression(callee, args=[], keywords=[], ensure_native_compatibility=Tr
         'extra': {
             'parenthesized': True,
         },
-    })
+    }
 
 
-def array_destructuring(props, rest=None, bare_pattern=False, destructured=None, declare=None):
+def array_destructuring(props, rest=None, bare_pattern=False,
+                        destructured=None, declare=None):
     array_pattern = {
         'type': 'ArrayPattern',
         'elements': [
@@ -159,7 +170,7 @@ def array_destructuring(props, rest=None, bare_pattern=False, destructured=None,
         return variable_declaration(left=array_pattern, right=destructured)
 
 
-UNDEFINED = tuple
+UNDEFINED = tuple()
 
 
 # 'key' is ususally an identifier node.
@@ -206,29 +217,6 @@ def object_destructuring(props, rest=None, bare_pattern=False,
     object_pattern = {
         'type': 'ObjectPattern',
         'properties': [
-            # {
-            #     'type': 'ObjectProperty',
-            #     'method': False,
-            #     'key': (
-            #         prop
-            #         if not isinstance(prop, tuple)
-            #         else prop[0]
-            #     ),
-            #     'computed': False,
-            #     'shorthand': True,
-            #     'value': (
-            #         prop
-            #         if not isinstance(prop, tuple)
-            #         else {
-            #             'type': 'AssignmentPattern',
-            #             'left': prop[0],
-            #             'right': prop[1]
-            #         }
-            #     ),
-            #     'extra': {
-            #         'shorthand': True,
-            #     },
-            # }
             (
                 object_property(key=prop[0], value=prop[1], assignment=True)
                 if isinstance(prop, tuple)
@@ -257,8 +245,58 @@ def object_destructuring(props, rest=None, bare_pattern=False,
         return variable_declaration(left=object_pattern, right=destructured)
 
 
-def object_expression(props, rest=None):
+# def object_expression(props, spreads=[]):
+#     return {
+#         'type': 'ObjectExpression',
+#         'properties': [
+#             (
+#                 object_property(key=prop[0], value=prop[1], assignment=True)
+#                 if isinstance(prop, tuple)
+#                 else object_property(key=prop, value=UNDEFINED)
+#             )
+#             for prop in props
+#         ]
+#         + (
+#             []
+#             if rest is None
+#             else [
+#                 {
+#                     'type': 'RestElement',
+#                     'argument': rest,
+#                 }
+#             ]
+#         )
+#     }
+#     return {
+#         'type': 'ObjectExpression',
+#         'properties': object_destructuring(props, rest=None, bare_pattern=True)['properties']
+#     }
+
+
+def block_statement(body):
+    if type(body) is not list:
+        body = [body]
     return {
-        'type': 'ObjectExpression',
-        'properties': object_destructuring(props, rest, bare_pattern=True)['properties']
+        'type': 'BlockStatement',
+        'directives': [],
+        'body': body,
+    }
+
+
+def if_statement(test, consequent, alternate=None):
+    '''consequent and alternate are wrapped in BlockStatements.'''
+    return {
+        'type': 'IfStatement',
+        'test': test,
+        'consequent': block_statement(consequent),
+        'alternate': block_statement(alternate) if alternate else None,
+    }
+
+
+def for_of_statement(left, right, body):
+    return {
+        'type': 'ForOfStatement',
+        'left': left,
+        'right': right,
+        'body': body,
     }
