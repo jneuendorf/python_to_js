@@ -12,13 +12,23 @@
         "transpiler"
     ],
     "scripts": {
-        "test": "node src/js/index.js --pattern=**/test.py",
-        "test:python": "python3 src/py/main.py"
+        "transpile": "",
+        "test": "yarn test:all",
+        "test:all": "yarn test:transpile && yarn test:js",
+        "test:js": "jest",
+        "test:python": "python3 src/py/main.py src/py/__tests__/literals.py",
+        "test:transpile": "node src/js/index.js --pattern=**/__tests__/*.py --test"
     },
     "dependencies": {
-        "babel-core": "^6.26.0",
+        "babel-core": "^6.26.3",
         "babel-generator": "^6.26.0",
         "globby": "^8.0.1",
         "yargs": "^12.0.2"
+    },
+    "devDependencies": {
+        "babel-jest": "^23.6.0",
+        "babel-preset-env": "^1.7.0",
+        "jest": "^23.6.0",
+        "regenerator-runtime": "^0.12.1"
     }
 }

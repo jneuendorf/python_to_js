@@ -1,16 +1,16 @@
-export const print = __def__(function print(args, kwargs) {
+const print = __def__(function print(args, kwargs) {
     console.log(...args)
 })
 
-export function type() {
+function type() {
     // TODO
 }
 
-export const tuple = __def__(function tuple([iterable=[]], kwargs) {
+const tuple = __def__(function tuple([iterable=[]], kwargs) {
     return Object.freeze([...iterable])
 })
 
-export const dict = __def__(function dict([iterable], kwargs) {
+const dict = __def__(function dict([iterable], kwargs) {
     // iterable = __use_kwarg__(kwargs, iterable, 'iterable')
     const map = new Map(iterable)
     for (const [key, value] of Object.entries(kwargs)) {
@@ -42,9 +42,9 @@ export const dict = __def__(function dict([iterable], kwargs) {
 })
 
 // Preferring 'in' keyword.
-// export const __has__ = (obj, prop) => obj.hasOwnProperty(prop)
+// const __has__ = (obj, prop) => obj.hasOwnProperty(prop)
 
-export function __use_kwarg__(kwargs, prev_value, prop_name) {
+function __use_kwarg__(kwargs, prev_value, prop_name) {
     let new_value = prev_value
     if (kwargs.hasOwnProperty(prop_name)) {
         new_value = kwargs[prop_name]
@@ -55,7 +55,7 @@ export function __use_kwarg__(kwargs, prev_value, prop_name) {
 
 // Mark function as transpiled / not built-in.
 // NOTE: Does not work when funciton is decorated...
-export function __def__(func) {
+function __def__(func) {
     func.__def__ = true
     // func.apply = (ctx, args, kwargs) => {
     //     return func.call(ctx, args, kwargs)
@@ -66,8 +66,18 @@ export function __def__(func) {
     return func
 }
 
+const __get_args__ = args => {
+    // args[2] must be JsHelperNames.INTERNAL_FUNC_CALL_FLAG
+    if (args.length === 3 && args[2] === '__icall__') {
+        return [args[0], args[1]]
+    }
+    else {
+        return [args, {}]
+    }
+}
+
 // // Add 'const self = this' for methods in order not to modify arguments additionally.
-// export function __call__(..._args) {
+// function __call__(..._args) {
 //     let ctx, func, args, kwargs
 //     if (args.length === 4) {
 //         [ctx, func, args, kwargs] = _args
@@ -83,3 +93,12 @@ export function __def__(func) {
 //     // 'kwargs' is ignored
 //     return func.apply(ctx, args, kwargs)
 // }
+module.exports = {
+    print,
+    type,
+    tuple,
+    dict,
+    __use_kwarg__,
+    __def__,
+    __get_args__,
+}

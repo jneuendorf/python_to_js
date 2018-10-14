@@ -10,7 +10,8 @@ const generate = require('babel-generator').default
 
 const {argv} = (
     yargs
-    .default('pattern', '**/*.py', 'glob pattern for finding sources to) transpile')
+    .default('pattern', '**/*.py', 'glob pattern for finding sources to transpile')
+    .default('test', false, 'flag for creating slightly different output when testing')
 )
 
 const cwd = process.cwd()
@@ -19,12 +20,20 @@ const python_main_script = path.join('src', 'py', 'main.py')
 
 const execAsync = util.promisify(exec)
 const main = async () => {
-    const relativePattern = argv.pattern
+    const {pattern: relativePattern, test: testing} = argv
+
     const absolutePattern = path.join(cwd, relativePattern)
 
-    // console.log(absolutePattern)
+    const helpers_source = (
+        testing
+        ? null
+        : fs.readFileSync(
+            path.join(__dirname, 'helpers', 'builtins.js'),
+            {encoding: 'utf8'}
+        )
+    )
+
     const sourceFiles = await globby(absolutePattern)
-    // console.log(sourceFiles)
     const results = await Promise.all(sourceFiles.map(async sourceFile => {
         return execAsync(`cd '${project_root}' && python3 ${python_main_script} ${sourceFile}`)
         .then(({stdout}) => {
@@ -37,19 +46,28 @@ const main = async () => {
             //     path.join(__dirname, 'helpers', 'builtins.js'),
             //     {encoding: 'utf8'}
             // )
-            const helpers = ''
-            console.log('CODE:')
-            console.log(helpers + raw_code)
-            console.log()
+            // const helpers = ''
+            // console.log('CODE:')
+            // console.log(helpers + raw_code)
+            // console.log()
+            const dest_file = json_file.replace(/\.ast\.json$/, '.js')
+            if (testing) {
+                const describe = path.basename(json_file).replace(/\.ast\.json$/, '')
+                const helpers = require('./helpers/builtins')
+                const helper_func_names = Object.keys(helpers)
+                fs.writeFileSync(
+                    dest_file,
+                    `import {${helper_func_names.join(', ')}} from '../../js/helpers/builtins'\n\ndescribe('${describe}', () => {\n\n${raw_code}\n\n})`
+                )
+            }
+            else {
+                fs.writeFileSync(
+                    dest_file,
+                    helpers_source + '\n\n' + raw_code
+                )
+            }
+
         })
-        // const {stdout} = await execAsync(`python3 ${python_main_script} ${sourceFile}`)
-        // const json_file = stdout.split("\n").slice(-2, -1)[0]
-        // const ast = fs.readFileSync(json_file, {encoding: 'utf8'})
-        // // 'code' is apparently optional...
-        // const {code, map} = generate(ast, {})
-        // console.log('CODE:')
-        // console.log(code)
-        // console.log()
     }))
 }
 

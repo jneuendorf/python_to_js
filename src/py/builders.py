@@ -1,4 +1,5 @@
-# MUST NOT IMPORT OTHER FILES OF THIS MODULE!
+# CANNOT IMPORT ALL OTHER FILES OF THIS MODULE!
+from js_helper_names import JsHelperNames
 
 
 def identifier(name):
@@ -14,7 +15,18 @@ def string(value=''):
         'value': value,
         'extra': {
             'rawValue': value,
-            # 'raw': '???'
+            # 'raw': '???',
+        },
+    }
+
+
+def num(value):
+    return {
+        'type': 'NumericLiteral',
+        'value': value,
+        'extra': {
+            'rawValue': value,
+            'raw': str(value),
         },
     }
 
@@ -73,6 +85,14 @@ def spread(argument):
     return {'type': 'SpreadElement', 'argument': argument}
 
 
+def rest(argument):
+    return {'type': 'RestElement', 'argument': argument}
+
+
+# For interal usage when params are named 'rest' the builder function is shadowed.
+rest_element = rest
+
+
 def array_expression(elements=[]):
     return {
         'type': 'ArrayExpression',
@@ -125,7 +145,8 @@ def call_expression(callee, args=[], keywords=[], ensure_native_compatibility=Tr
                         )
                         for keyword in keywords
                     ],
-                }
+                },
+                string(JsHelperNames.INTERNAL_FUNC_CALL_FLAG),
             ],
         },
         'alternate': plain_call_expression,
@@ -152,12 +173,7 @@ def array_destructuring(props, rest=None, bare_pattern=False,
         + (
             []
             if rest is None
-            else [
-                {
-                    'type': 'RestElement',
-                    'argument': rest,
-                }
-            ]
+            else [rest_element(rest)]
         )
     }
 
@@ -167,7 +183,7 @@ def array_destructuring(props, rest=None, bare_pattern=False,
     if declare is None:
         return assignment(left=array_pattern, right=destructured)
     else:
-        return variable_declaration(left=array_pattern, right=destructured)
+        return variable_declaration(left=array_pattern, right=destructured, kind=declare)
 
 
 UNDEFINED = tuple()
@@ -227,12 +243,7 @@ def object_destructuring(props, rest=None, bare_pattern=False,
         + (
             []
             if rest is None
-            else [
-                {
-                    'type': 'RestElement',
-                    'argument': rest,
-                }
-            ]
+            else [rest_element(rest)]
         )
     }
 
@@ -242,7 +253,7 @@ def object_destructuring(props, rest=None, bare_pattern=False,
     if declare is None:
         return destructured(left=object_pattern, right=destructured)
     else:
-        return variable_declaration(left=object_pattern, right=destructured)
+        return variable_declaration(left=object_pattern, right=destructured, kind=declare)
 
 
 # def object_expression(props, spreads=[]):
@@ -259,12 +270,7 @@ def object_destructuring(props, rest=None, bare_pattern=False,
 #         + (
 #             []
 #             if rest is None
-#             else [
-#                 {
-#                     'type': 'RestElement',
-#                     'argument': rest,
-#                 }
-#             ]
+#             else [rest_element(rest)]
 #         )
 #     }
 #     return {

@@ -1,5 +1,8 @@
+__pycache__
 *.log
 *.pyc
+**/__tests__/*.ast.json
+**/__tests__/*.js
 babel-preset-php
 node_modules
 python_to_php

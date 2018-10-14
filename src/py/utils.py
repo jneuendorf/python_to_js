@@ -1,21 +1,8 @@
-from collections import namedtuple
-import itertools
+# import itertools
 
 # import type_checkers as check
 import builders as build
-
-
-JsHelperNames = namedtuple('JsHelperNames', ' '.join([
-    # keys
-    'CONSUME_KWARG_IF_POSSIBLE',
-    'TUPLE_CONSTRUCTOR',
-    'DICT_CONSTRUCTOR',
-]))(
-    # values
-    '__use_kwarg__',
-    'tuple',
-    'dict',
-)
+from js_helper_names import JsHelperNames
 
 
 def consume(*props):
@@ -35,11 +22,11 @@ def consume(*props):
     return decorator
 
 
-def groupby(iterable, key=lambda x: x):
-    return itertools.groupby(
-        sorted(iterable, key=key),
-        key=key,
-    )
+# def groupby(iterable, key=lambda x: x):
+#     return itertools.groupby(
+#         sorted(iterable, key=key),
+#         key=key,
+#     )
 
 
 def unwrap_ensured_native_compatibility_call(babel_node):
@@ -157,52 +144,100 @@ def function_definition_parts(babel_node, node):
         defaults = [NO_DEFAULT_FOR_ARG for i in range(0, diff)] + defaults
 
     # Prepend custom JS code the function body (for creating the kwargs behavior).
-    body = (
-        [
-            build.assignment(
-                left=arg,
-                right=build.call_expression(
-                    callee=build.identifier(JsHelperNames.CONSUME_KWARG_IF_POSSIBLE),
-                    args=[
-                        kwarg,
-                        arg,
-                        build.string(arg['name'])
-                    ],
-                    ensure_native_compatibility=False,
+    # body = babel_node['body']
+    # if len(args) > 0:
+    args_identifier = '__arguments__'
+    if True:
+        # var [[a, b=1, ...c], {d, e=3, ...f}] =  __get_args__(args)
+        body = (
+            [
+                build.variable_declaration(
+                    left=build.array_destructuring(
+                        bare_pattern=True,
+                        props=[
+                            build.array_destructuring(
+                                props=[
+                                    (
+                                        arg
+                                        if defaults[i] is NO_DEFAULT_FOR_ARG
+                                        else (arg, defaults[i])
+                                    )
+                                    for i, arg in enumerate(args)
+                                ],
+                                rest=vararg,
+                                bare_pattern=True,
+                            ),
+                            build.object_destructuring(
+                                props=[
+                                    (
+                                        kwonlyarg
+                                        if kw_defaults[i] is None
+                                        else (kwonlyarg, kw_defaults[i])
+                                    )
+                                    for i, kwonlyarg in enumerate(kwonlyargs)
+                                ],
+                                rest=kwarg,
+                                bare_pattern=True,
+                            ),
+                        ]
+                    ),
+                    right=build.call_expression(
+                        callee=build.identifier(JsHelperNames.GET_ARGS_AND_KWARGS),
+                        args=[build.identifier(args_identifier)],
+                        ensure_native_compatibility=False,
+
+                    ),
                 ),
-            )
-            for arg in args
-            if kwarg is not None
-        ]
-        + babel_node['body']
-    )
+            ]
+            + [
+                build.assignment(
+                    left=arg,
+                    right=build.call_expression(
+                        callee=build.identifier(
+                            JsHelperNames.CONSUME_KWARG_IF_POSSIBLE
+                        ),
+                        args=[
+                            kwarg,
+                            arg,
+                            build.string(arg['name'])
+                        ],
+                        ensure_native_compatibility=False,
+                    ),
+                )
+                for arg in args
+                if kwarg is not None
+            ]
+            + babel_node['body']
+        )
+
     return {
         '__name__': build.identifier(node.name),
         'params': [
-            build.array_destructuring(
-                props=[
-                    (
-                        arg
-                        if defaults[i] is NO_DEFAULT_FOR_ARG
-                        else (arg, defaults[i])
-                    )
-                    for i, arg in enumerate(args)
-                ],
-                rest=vararg,
-                bare_pattern=True,
-            ),
-            build.object_destructuring(
-                props=[
-                    (
-                        kwonlyarg
-                        if kw_defaults[i] is None
-                        else (kwonlyarg, kw_defaults[i])
-                    )
-                    for i, kwonlyarg in enumerate(kwonlyargs)
-                ],
-                rest=kwarg,
-                bare_pattern=True,
-            ),
+            build.rest(build.identifier(args_identifier))
+            # build.array_destructuring(
+            #     props=[
+            #         (
+            #             arg
+            #             if defaults[i] is NO_DEFAULT_FOR_ARG
+            #             else (arg, defaults[i])
+            #         )
+            #         for i, arg in enumerate(args)
+            #     ],
+            #     rest=vararg,
+            #     bare_pattern=True,
+            # ),
+            # build.object_destructuring(
+            #     props=[
+            #         (
+            #             kwonlyarg
+            #             if kw_defaults[i] is None
+            #             else (kwonlyarg, kw_defaults[i])
+            #         )
+            #         for i, kwonlyarg in enumerate(kwonlyargs)
+            #     ],
+            #     rest=kwarg,
+            #     bare_pattern=True,
+            # ),
         ],
         'body': {
             'type': 'BlockStatement',
