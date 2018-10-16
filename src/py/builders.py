@@ -37,10 +37,25 @@ def this():
     }
 
 
+def null():
+    return {
+        'type': 'NullLiteral',
+    }
+
+
 def expression_statement(expression):
     return {
         'type': 'ExpressionStatement',
         'expression': expression,
+    }
+
+
+def binary_expression(operator, left, right):
+    return {
+        'type': 'BinaryExpression',
+        'operator': operator,
+        'left': left,
+        'right': right,
     }
 
 
@@ -89,7 +104,7 @@ def rest(argument):
     return {'type': 'RestElement', 'argument': argument}
 
 
-# For interal usage when params are named 'rest' the builder function is shadowed.
+# For interal usage: when params are named 'rest' the builder function is shadowed.
 rest_element = rest
 
 
@@ -118,41 +133,52 @@ def call_expression(callee, args=[], keywords=[], ensure_native_compatibility=Tr
     if not ensure_native_compatibility:
         return plain_call_expression
 
-    # else: if callee has '__def__' prop
-    #       call like f(args, kwargs) otherwise like f(...args)
+    # typeof JS language feature
+    # TODO: use type_checkers
+    if callee['type'] == 'Identifier' and callee['name'] == 'typeof':
+        if len(plain_args) != 1:
+            raise ValueError('typeof takes exactly 1 argument.')
+        return {
+            'type': 'UnaryExpression',
+            'operator': 'typeof',
+            # 'prefix': True, # ?
+            'argument': plain_args[0],
+        }
+
+    # Normal func when keywords are not used?
+    # if len(keywords) == 0:
+
+    print('>>>', callee)
+    # TODO: use type_checkers
+    if callee['type'] == 'MemberExpression':
+        context = callee['object']
+        key_or_callable = string(callee['property']['name'])
+    else:
+        context = null()
+        key_or_callable = callee
+
     return {
-        'type': 'ConditionalExpression',
-        # TODO: Use constant from 'JsHelperNames'
-        'test': member_expression(
-            object=callee,
-            property=identifier('__def__')
-        ),
-        'consequent': {
-            'type': 'CallExpression',
-            'callee': callee,
-            'arguments': [
-                array_expression(plain_args),
-                {
-                    'type': 'ObjectExpression',
-                    'properties': [
-                        (
-                            spread(keyword['value'])
-                            if keyword['arg'] is None
-                            else object_property(
-                                key=keyword['arg'],
-                                value=keyword['value'],
-                            )
+        'type': 'CallExpression',
+        'callee': identifier(JsHelperNames.CALL_CALLABLE),
+        'arguments': [
+            context,
+            key_or_callable,
+            *plain_args,
+            {
+                'type': 'ObjectExpression',
+                'properties': [
+                    (
+                        spread(keyword['value'])
+                        if keyword['arg'] is None
+                        else object_property(
+                            key=keyword['arg'],
+                            value=keyword['value'],
                         )
-                        for keyword in keywords
-                    ],
-                },
-                string(JsHelperNames.INTERNAL_FUNC_CALL_FLAG),
-            ],
-        },
-        'alternate': plain_call_expression,
-        'extra': {
-            'parenthesized': True,
-        },
+                    )
+                    for keyword in keywords
+                ],
+            },
+        ],
     }
 
 

@@ -1,6 +1,7 @@
 import ast
 
 import builders as build
+import utils
 from utils import consume, JsHelperNames
 
 
@@ -18,12 +19,23 @@ def map_str(babel_node, node, parents):
     }
 
 
-@consume('value')
-def map_name_constant(babel_node, node, parents):
-    if type(node.value) is bool:
-        return {'type': 'BooleanLiteral', 'value': node.value}
-    else:
-        return {'type': 'NullLiteral'}
+# since 3.6
+@consume('value', 'conversion', 'format_spec')
+def map_formatted_value(babel_node, node, parents):
+    return babel_node['value']
+
+
+# since 3.6
+@consume('values')
+def map_joined_str(babel_node, node, parents):
+    return utils.concatenation(babel_node['values'])
+
+
+def map_bytes(babel_node, node, parents):
+    raise NotImplementedError(
+        'The bytes class is not available at runtime and '
+        'should not be used for that reason.'
+    )
 
 
 @consume('elts', 'ctx')
@@ -77,10 +89,15 @@ def map_dict(babel_node, node, parents):
             for key, value in zip(babel_node['keys'], babel_node['values'])
         ])],
     )
-    # return {
-    #     'type': 'ObjectExpression',
-    #     'properties': [
-    #         build.spread(value) if key is None else build.object_property(key, value)
-    #         for key, value in zip(babel_node['keys'], babel_node['values'])
-    #     ],
-    # }
+
+
+def map_ellipsis(babel_node, node, parents):
+    return {'type': 'EmptyStatement'}
+
+
+@consume('value')
+def map_name_constant(babel_node, node, parents):
+    if type(node.value) is bool:
+        return {'type': 'BooleanLiteral', 'value': node.value}
+    else:
+        return build.null()

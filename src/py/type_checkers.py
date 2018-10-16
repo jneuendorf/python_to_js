@@ -1,25 +1,9 @@
-from utils import ShapeError, unpack_value
+import utils
 
 
 def _factory(type_str):
     type_str = type_str.capitalize()
     return lambda node: 'type' in node and node['type'] == type_str
-
-
-def shape(node, shape_descriptor):
-    last_node_type = shape_descriptor.split('.')[-1]
-    if '__' in last_node_type:
-        raise ShapeError(
-            'Last part must not contain a key but only the node type.'
-        )
-    try:
-        return (
-            unpack_value(node, shape_descriptor + '__type')
-            == last_node_type
-        )
-    except ShapeError as e:
-        print(str(e))
-        return False
 
 
 is_identifier = _factory('identifier')
@@ -36,7 +20,7 @@ def is_call_expression(node, regard_wrapped=True):
 
 def is_wrapped_call_expression(node):
     '''Corresponds to 'call_expression(ensure_native_compatibility=True)'.'''
-    return shape(
+    return utils.shape(
         node,
         'expression.condition_expression__alternate.call_expression'
     )

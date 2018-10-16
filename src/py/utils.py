@@ -1,4 +1,5 @@
 # import itertools
+import functools
 
 # import type_checkers as check
 import builders as build
@@ -27,6 +28,34 @@ def consume(*props):
 #         sorted(iterable, key=key),
 #         key=key,
 #     )
+
+
+def reduce(operator, nodes):
+    '''
+    Creates an ast containing binary nodes from a (flat) list of items.
+
+    Example:
+    sum = reduce(
+        operator=lambda left, right: build.binary_expression('+', left, right),
+        nodes=[build.num(i) for i in range(0, 10)]
+    )
+    '''
+    if len(nodes) < 2:
+        raise ValueError('There must be at least 2 nodes.')
+    # reduced_node = operator()
+    return functools.reduce(operator, nodes)
+
+
+def binary_expression(raw_operator, nodes):
+    def reducer(left, right):
+        return build.binary_expression(raw_operator, left, right)
+    return reduce(reducer, nodes)
+
+
+###############################################################################
+
+concatenation = functools.partial(binary_expression, '+')
+sum = concatenation
 
 
 def unwrap_ensured_native_compatibility_call(babel_node):
@@ -111,6 +140,22 @@ def unpack_value(node, shape_descriptor):
             current_node = current_node[child_key]
         else:
             return current_node[child_key]
+
+
+def shape(node, shape_descriptor):
+    last_node_type = shape_descriptor.split('.')[-1]
+    if '__' in last_node_type:
+        raise ShapeError(
+            'Last part must not contain a key but only the node type.'
+        )
+    try:
+        return (
+            unpack_value(node, shape_descriptor + '__type')
+            == last_node_type
+        )
+    except ShapeError as e:
+        print(str(e))
+        return False
 
 
 def get_callee_name(node, raw=False):

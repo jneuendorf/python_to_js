@@ -95,7 +95,7 @@ def complete_babel_node(incomplete_babel_node_with_children, node, parents):
         map_node = mapping[key]
         completion = map_node(incomplete_babel_node_with_children, node, parents)
         incomplete_babel_node_with_children.update(completion)
-        pprint(incomplete_babel_node_with_children)
+        # pprint(incomplete_babel_node_with_children)
     else:
         print('oops', node.__class__.__name__)
 
@@ -161,7 +161,7 @@ try:
         # visitor = Visitor()
         # print(visitor.visit(ast))
         babel_ast = create_babel_node(abstract_syntax_tree)
-        print(babel_ast)
+        # print(babel_ast)
         ast_json = json.dumps(babel_ast)
         # print(ast_json)
         with open(json_dump_filename, 'w') as json_file:
