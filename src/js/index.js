@@ -53,11 +53,11 @@ const main = async () => {
             const dest_file = json_file.replace(/\.ast\.json$/, '.js')
             if (testing) {
                 const describe = path.basename(json_file).replace(/\.ast\.json$/, '')
-                const helpers = require('./helpers/builtins')
+                const helpers = require('./helpers')
                 const helper_func_names = Object.keys(helpers)
                 fs.writeFileSync(
                     dest_file,
-                    `import {${helper_func_names.join(', ')}} from '../../js/helpers/builtins'\n\ndescribe('${describe}', () => {\n\n${raw_code}\n\n})`
+                    `import {${helper_func_names.join(', ')}} from '../../js/helpers'\n\ndescribe('${describe}', () => {\n\n${raw_code}\n\n})`
                 )
             }
             else {

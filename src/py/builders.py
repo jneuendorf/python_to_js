@@ -43,6 +43,10 @@ def null():
     }
 
 
+def undefined():
+    return identifier('undefined')
+
+
 def expression_statement(expression):
     return {
         'type': 'ExpressionStatement',
@@ -88,6 +92,10 @@ def assignment(left, right, parenthesized=True):
 
 # Corresponds to the 'Attribute' ast class.
 def member_expression(object, property, computed=False):
+    '''
+
+    computed {bool} True iff. using square brackets, e.g. obj[prop]
+    '''
     return {
         'type': 'MemberExpression',
         'object': object,
@@ -303,6 +311,20 @@ def object_destructuring(props, rest=None, bare_pattern=False,
 #         'type': 'ObjectExpression',
 #         'properties': object_destructuring(props, rest=None, bare_pattern=True)['properties']
 #     }
+
+# TODO: support spreads
+def object_expression(props):
+    return {
+        'type': 'ObjectExpression',
+        'properties': [
+            (
+                object_property(key=prop[0], value=prop[1], assignment=True)
+                if isinstance(prop, tuple)
+                else object_property(key=prop, value=UNDEFINED)
+            )
+            for prop in props
+        ]
+    }
 
 
 def block_statement(body):

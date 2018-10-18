@@ -16,6 +16,7 @@
         "test": "yarn test:all",
         "test:all": "yarn test:transpile && yarn test:js",
         "test:js": "jest",
+        "test:js:debug": "node --inspect-brk node_modules/.bin/jest --runInBand",
         "test:python": "python3 src/py/main.py src/py/__tests__/literals.py",
         "test:transpile": "node src/js/index.js --pattern=**/__tests__/*.py --test"
     },
